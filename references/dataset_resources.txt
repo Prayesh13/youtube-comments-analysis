@@ -1,0 +1,5 @@
+Twitter dataset link=
+        "https://raw.githubusercontent.com/PratishMashankar/twitter-sentiment-analysis/refs/heads/master/data/Twitter_Data.csv"
+
+Reddit dataset link=
+        "https://raw.githubusercontent.com/Himanshu-1703/reddit-sentiment-analysis/refs/heads/main/data/reddit.csv"
