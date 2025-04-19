@@ -4,17 +4,14 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
-
+import re
 from collections import Counter
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
-import mlflow
-import mlflow.pytorch
 import numpy as np
+import pandas as pd
 import os
 import logging
 import yaml
 import nltk
-import pickle
 import json
 nltk.download('punkt')
 
@@ -54,45 +51,47 @@ def load_params(params_path: str) -> dict:
         raise
 
 
-def load_object(file_path: str):
-    """General function to load a pickled object (e.g., model, vectorizer, etc.)."""
-    try:
-        if not os.path.exists(file_path):
-            logger.error('File does not exist: %s', file_path)
-            raise FileNotFoundError(f"File does not exist: {file_path}")
+def tokenizer(text):
+    return re.findall(r'\b\w+\b', text.lower())
 
-        with open(file_path, 'rb') as file:
-            obj = pickle.load(file)
-        logger.debug('Object loaded successfully from %s', file_path)
-        return obj
+# 2. Build vocabulary
+def build_vocab(texts, min_freq=1):
+    counter = Counter()
+    for text in texts:
+        counter.update(tokenizer(text))
+    vocab = {"<unk>": 0, "<pad>": 1}
+    for word, freq in counter.items():
+        if freq >= min_freq:
+            vocab[word] = len(vocab)
+    return vocab
 
-    except FileNotFoundError as e:
-        logger.error('File not found error: %s', e)
-        raise
-    except pickle.UnpicklingError as e:
-        logger.error('Error unpickling file: %s', e)
-        raise
-    except Exception as e:
-        logger.error('Unexpected error loading object: %s', e)
-        raise
+# 3. Custom Dataset class
+class TextDataset(Dataset):
+    def __init__(self, texts, labels, vocab, tokenizer, max_len=100):
+        self.texts = texts
+        self.labels = labels
+        self.vocab = vocab
+        self.tokenizer = tokenizer
+        self.max_len = max_len
 
+    def __len__(self):
+        return len(self.texts)
 
-def load_vocab_tokenizer_dataloaders(root_dir: str):
-    """Load vocab, tokenizer, and dataloaders from pickled files."""
-    try:
-        vocab = load_object(os.path.join(root_dir, 'data/processed/vocab.pkl'))
-        tokenizer = load_object(os.path.join(root_dir, 'data/processed/tokenizer.pkl'))
-        
-        train_loader = load_object(os.path.join(root_dir, 'data/processed/train_loader.pkl'))
-        test_loader = load_object(os.path.join(root_dir, 'data/processed/test_loader.pkl'))
+    def __getitem__(self, idx):
+        tokens = self.tokenizer(self.texts[idx])
+        ids = [self.vocab.get(token, self.vocab["<unk>"]) for token in tokens][:self.max_len]
+        ids += [self.vocab["<pad>"]] * (self.max_len - len(ids))
+        return torch.tensor(ids), torch.tensor(self.labels[idx], dtype=torch.long)
 
-        logger.debug('Vocab, tokenizer, and dataloaders loaded successfully.')
-        
-        return vocab, tokenizer, train_loader, test_loader
+# 4. Create DataLoaders
+def create_loaders(X_train, y_train, X_test, y_test, vocab, tokenizer, batch_size=32, max_len=100):
+    train_dataset = TextDataset(X_train.tolist(), y_train.tolist(), vocab, tokenizer, max_len)
+    test_dataset = TextDataset(X_test.tolist(), y_test.tolist(), vocab, tokenizer, max_len)
 
-    except Exception as e:
-        logger.error('Error loading vocab, tokenizer, or dataloaders: %s', e)
-        raise
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size)
+
+    return train_loader, test_loader
 
 
 class Attention(nn.Module):
@@ -143,7 +142,6 @@ def train_model(model, train_loader, val_loader, optimizer, criterion, device):
             total_loss += loss.item()
 
         avg_train_loss = total_loss / len(train_loader)
-        mlflow.log_metric("train_loss", avg_train_loss, step=epoch)
 
         # Validation
         model.eval()
@@ -156,13 +154,11 @@ def train_model(model, train_loader, val_loader, optimizer, criterion, device):
                 val_loss += loss.item()
 
         avg_val_loss = val_loss / len(val_loader)
-        mlflow.log_metric("val_loss", avg_val_loss, step=epoch)
 
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
             patience_counter = 0
-            torch.save(model.state_dict(), "best_model.pth")
-            logger.debug('Saved best model at epoch %d', epoch)
+            logger.debug('Best model at epoch %d', epoch)
         else:
             patience_counter += 1
             if patience_counter >= patience:
@@ -201,6 +197,17 @@ def train_on_best_params(best_params, vocab, train_loader, test_loader, y_train)
         raise
 
 
+def load_data(file_path: str) -> pd.DataFrame:
+    try:
+        df = pd.read_csv(file_path)
+        df.fillna('', inplace=True)
+        logger.debug('Data loaded successfully from %s', file_path)
+        return df
+    except Exception as e:
+        logger.error('Failed to load data: %s', e)
+        raise
+
+
 def save_model(model, file_path: str) -> None:
     """Save the trained model to a file."""
     try:
@@ -212,17 +219,6 @@ def save_model(model, file_path: str) -> None:
         raise
 
 
-def save_params(best_params, file_path: str) -> None:
-    """Save the trained model to a file."""
-    try:
-        with open(file_path, 'wb') as file:
-            json.dump(best_params, file)
-        logger.debug('Parameters saved to %s', file_path)
-    except Exception as e:
-        logger.error('Error occurred while saving the parameters as json: %s', e)
-        raise
-
-
 def get_root_directory() -> str:
     """Get the root directory (two levels up from this script's location)."""
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -231,19 +227,39 @@ def get_root_directory() -> str:
 
 def main():
     try:
-        # Get root directory and resolve the path for params.yaml
         root_dir = get_root_directory()
-
-        # Load parameters from the root directory
         params = load_params(os.path.join(root_dir, 'params.yaml'))
 
-        vocab, tokenizer, train_loader, val_loader, test_loader = load_vocab_tokenizer_dataloaders(root_dir)
+        # Load training and testing data
+        train_data = load_data(os.path.join(root_dir, 'data/interim/train_processed.csv'))
+        test_data = load_data(os.path.join(root_dir, 'data/interim/test_processed.csv'))
 
+        X_train = train_data['clean_comment']
+        y_train = train_data['category']
+        X_test = test_data['clean_comment']
+        y_test = test_data['category']
+
+        label_mapping = {-1: 0, 0: 1, 1: 2}
+        y_train = y_train.map(label_mapping)
+        y_test = y_test.map(label_mapping)
+
+        logger.debug('Data loaded successfully and output labels mapped.')
+
+        # Build vocabulary
+        logger.info("Building vocabulary...")
+        vocab = build_vocab(X_train)
+        logger.info(f"Vocabulary size: {len(vocab)}")
+
+
+        max_len = params['model_building']['max_len']
         embed_dim = params['model_building']['embed_dim']
         hidden_dim = params['model_building']['hidden_dim']
         learning_rate = params['model_building']['learning_rate']
         batch_size = params['model_building']['batch_size']
 
+        # Create data loaders
+        train_loader, test_loader = create_loaders(X_train, y_train, X_test, y_test, vocab, tokenizer, batch_size, max_len)
+        
         best_params = {
             'embed_dim': embed_dim,
             'hidden_dim': hidden_dim,
@@ -253,49 +269,26 @@ def main():
 
 
         # Train the LightGBM model using hyperparameters from params.yaml
-        best_model = train_lgbm(X_train_tfidf, y_train, learning_rate, max_depth, n_estimators)
+        logger.info('Training started')
+        best_model = train_on_best_params(
+            best_params=best_params,
+            vocab=vocab,
+            train_loader=train_loader,
+            test_loader=test_loader,
+            y_train=y_train
+        )
 
-        # Save the trained model in the root directory
-        save_model(best_model, os.path.join(root_dir, 'lgbm_model.pkl'))
+        # Save the trained model in the models directory
+        os.makedirs(os.path.join(root_dir, 'models'), exist_ok=True)
+        model_path = os.path.join(root_dir, 'models')
+        save_model(best_model, os.path.join(model_path, 'bilstm_attention_model.pth'))
+
+        # Save the best parameters in the models directory
+        # save_params(best_params, os.path.join(model_path, 'best_params.json'))
 
     except Exception as e:
         logger.error('Failed to complete the feature engineering and model building process: %s', e)
         print(f"Error: {e}")
-
-def main():
-    try:
-        # Load params
-        params = load_params('params.yaml')
-
-        # Model, Dataset and DataLoader initialization should happen here
-        # Example (dummy placeholders):
-        # model = YourModelClass()
-        # train_loader = DataLoader(...)
-        # val_loader = DataLoader(...)
-        # test_loader = DataLoader(...)
-        # optimizer = optim.Adam(model.parameters(), lr=params['learning_rate'])
-        # criterion = nn.CrossEntropyLoss()
-
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        model = model.to(device)
-
-        with mlflow.start_run():
-            logger.info('Training started')
-            train_model(model, train_loader, val_loader, optimizer, criterion, device)
-            logger.info('Training completed')
-
-            logger.info('Evaluating model')
-            evaluate_model(model, test_loader, criterion, device)
-            mlflow.pytorch.log_model(model, "model")
-
-    except Exception as e:
-        logger.error('Error in main execution: %s', e)
-        print(f"Error occurred: {e}")
-
-if __name__ == '__main__':
-    main()
-
-
 
 if __name__ == '__main__':
     main()

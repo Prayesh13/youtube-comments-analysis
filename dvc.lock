@@ -56,3 +56,52 @@ stages:
       md5: 5ef7cf87d7dbc7eca41aa6e26dff5311.dir
       size: 27232233
       nfiles: 4
+  model_building:
+    cmd: python src/model/model_building.py
+    deps:
+    - path: data/interim
+      hash: md5
+      md5: 8aec50b516d13a339f68e7135e4ad9bc.dir
+      size: 21534045
+      nfiles: 2
+    - path: src/model/model_building.py
+      hash: md5
+      md5: f52d910fbdbaa30178ec2b3ebcb1b5fe
+      size: 10015
+    params:
+      params.yaml:
+        model_building.batch_size: 32
+        model_building.embed_dim: 100
+        model_building.hidden_dim: 128
+        model_building.learning_rate: 0.00274134071928009
+        model_building.max_len: 100
+    outs:
+    - path: models/bilstm_attention_model.pth
+      hash: md5
+      md5: 73c83b30a022ed42fee834cee730250a
+      size: 41877038
+  model_evaluation:
+    cmd: python src/model/model_evaluation.py
+    deps:
+    - path: data/interim
+      hash: md5
+      md5: 8aec50b516d13a339f68e7135e4ad9bc.dir
+      size: 21534045
+      nfiles: 2
+    - path: models/bilstm_attention_model.pth
+      hash: md5
+      md5: 73c83b30a022ed42fee834cee730250a
+      size: 41877038
+    - path: src/model/model_evaluation.py
+      hash: md5
+      md5: 169ad421bcba9ae5027e92542ba39752
+      size: 12584
+    params:
+      params.yaml:
+        model_building.batch_size: 32
+        model_building.max_len: 100
+    outs:
+    - path: reports/evaluation_results.json
+      hash: md5
+      md5: 210da586d9c07d57ee1d438956e589ef
+      size: 730

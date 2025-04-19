@@ -16,15 +16,29 @@ stages:
     outs:
       - data/interim
 
-  feature_engineering:
-    cmd: python src/features/feature_engineering.py
+  model_building:
+    cmd: python src/model/model_building.py
     deps:
-      - src/features/feature_engineering.py
+      - src/model/model_building.py
       - data/interim
     params:
-      - feature_engineering.max_len
-      - feature_engineering.batch_size
+      - model_building.embed_dim
+      - model_building.hidden_dim
+      - model_building.learning_rate
+      - model_building.batch_size
+      - model_building.max_len
+      - model_building.batch_size
     outs:
-      - data/processed
-
+      - models/bilstm_attention_model.pth
   
+  model_evaluation:
+    cmd: python src/model/model_evaluation.py
+    deps:
+      - src/model/model_evaluation.py
+      - models/bilstm_attention_model.pth
+      - data/interim
+    params:
+      - model_building.batch_size
+      - model_building.max_len
+    metrics:
+      - reports/evaluation_results.json

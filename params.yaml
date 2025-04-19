@@ -1,12 +1,9 @@
 data_ingestion:
   test_size: 0.2
 
-feature_engineering:
+model_building:
   max_len: 100
   batch_size: 32
-
-model_building:
   embed_dim: 100
   hidden_dim: 128
   learning_rate: 0.00274134071928009
-  batch_size: 32
