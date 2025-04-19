@@ -1,0 +1,58 @@
+schema: '2.0'
+stages:
+  data_ingestion:
+    cmd: python src/data/data_ingestion.py
+    deps:
+    - path: src/data/data_ingestion.py
+      hash: md5
+      md5: 534a4c11a807157ae4703a71779a333c
+      size: 5445
+    params:
+      params.yaml:
+        data_ingestion.test_size: 0.2
+    outs:
+    - path: data/raw
+      hash: md5
+      md5: 51643d94fdaff5a6738750865c72ca9a.dir
+      size: 28376230
+      nfiles: 2
+  data_preprocessing:
+    cmd: python src/data/data_preprocessing.py
+    deps:
+    - path: data/raw
+      hash: md5
+      md5: 51643d94fdaff5a6738750865c72ca9a.dir
+      size: 28376230
+      nfiles: 2
+    - path: src/data/data_preprocessing.py
+      hash: md5
+      md5: 69c7b2aad4f025026c78a096f09e6b7f
+      size: 7862
+    outs:
+    - path: data/interim
+      hash: md5
+      md5: 8aec50b516d13a339f68e7135e4ad9bc.dir
+      size: 21534045
+      nfiles: 2
+  feature_engineering:
+    cmd: python src/features/feature_engineering.py
+    deps:
+    - path: data/interim
+      hash: md5
+      md5: 8aec50b516d13a339f68e7135e4ad9bc.dir
+      size: 21534045
+      nfiles: 2
+    - path: src/features/feature_engineering.py
+      hash: md5
+      md5: 68bb51691db8b7d324a34d0d37e6f326
+      size: 5205
+    params:
+      params.yaml:
+        feature_engineering.batch_size: 32
+        feature_engineering.max_len: 100
+    outs:
+    - path: data/processed
+      hash: md5
+      md5: 5ef7cf87d7dbc7eca41aa6e26dff5311.dir
+      size: 27232233
+      nfiles: 4
