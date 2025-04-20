@@ -1,23 +1,24 @@
 # src/model/model_evaluation.py
-
+import os
+import json
+import yaml
 import torch
-import torch.nn as nn
+import logging
+import pickle
 import pandas as pd
 import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader, Dataset
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
-import os
-import logging
 import mlflow
 import mlflow.pytorch
-import matplotlib.pyplot as plt
-import seaborn as sns
-import yaml
-import json
-import pickle
-from model_building import BiLSTMAttentionModel, tokenizer, build_vocab, TextDataset, create_loaders
 import dagshub
-dagshub.init(repo_owner='Prayesh13', repo_name='youtube-comments-analysis', mlflow=True)
 
+# Initialize DagsHub and MLflow
+dagshub.init(repo_owner='Prayesh13', repo_name='youtube-comments-analysis', mlflow=True)
 
 # logging configuration
 logger = logging.getLogger('model_evaluation')
@@ -36,6 +37,59 @@ file_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
 logger.addHandler(file_handler)
 
+
+class Attention(nn.Module):
+    def __init__(self, hidden_dim):
+        super(Attention, self).__init__()
+        self.attention = nn.Linear(hidden_dim * 2, 1)
+
+    def forward(self, lstm_output):
+        attn_weights = torch.softmax(self.attention(lstm_output), dim=1)
+        context = torch.sum(attn_weights * lstm_output, dim=1)
+        return context
+
+
+class BiLSTMAttentionModel(nn.Module):
+    def __init__(self, vocab_size, embed_dim, hidden_dim, output_dim, vocab):
+        super(BiLSTMAttentionModel, self).__init__()
+        self.embedding = nn.Embedding(vocab_size, embed_dim, padding_idx=vocab["<pad>"])
+        self.lstm = nn.LSTM(embed_dim, hidden_dim, batch_first=True, bidirectional=True)
+        self.attention = Attention(hidden_dim)
+        self.fc = nn.Linear(hidden_dim * 2, output_dim)
+
+    def forward(self, x):
+        embedded = self.embedding(x)
+        lstm_out, _ = self.lstm(embedded)
+        attn_output = self.attention(lstm_out)
+        return self.fc(attn_output)
+
+
+def tokenizer(text):
+    return re.findall(r'\b\w+\b', text.lower())
+
+
+class TextDataset(Dataset):
+    def __init__(self, texts, labels, vocab, max_len=100):
+        self.texts = texts
+        self.labels = labels
+        self.vocab = vocab
+        self.max_len = max_len
+
+    def __len__(self):
+        return len(self.texts)
+
+    def __getitem__(self, idx):
+        tokens = self.texts[idx].split()
+        ids = [self.vocab.get(token, self.vocab['<unk>']) for token in tokens][:self.max_len]
+        ids += [self.vocab['<pad>']] * (self.max_len - len(ids))
+        return torch.tensor(ids), torch.tensor(self.labels[idx], dtype=torch.long)
+
+
+def create_loader(texts, labels, vocab, batch_size, max_len):
+    dataset = TextDataset(texts.tolist(), labels.tolist(), vocab, max_len)
+    return DataLoader(dataset, batch_size=batch_size, shuffle=False)
+
+
 def load_params(params_path: str) -> dict:
     """Load parameters from a YAML file."""
     try:
@@ -53,17 +107,22 @@ def load_params(params_path: str) -> dict:
         logger.error('Unexpected error: %s', e)
         raise
 
-def load_trained_model(model_path: str, model_class: nn.Module, vocab_size: int, embed_dim: int, hidden_dim: int, output_dim: int, vocab) -> nn.Module:
-    """Load the trained model from a file."""
+
+def load_model(file_path: str):
+    """Load the full model from a file."""
     try:
-        model = model_class(vocab_size, embed_dim, hidden_dim, output_dim, vocab)
-        model.load_state_dict(torch.load(model_path))
+        # Add the custom class to the safe globals if you're confident in the checkpoint's source
+        # torch.serialization.add_safe_globals([BiLSTMAttentionModel])
+        
+        model = torch.load(file_path, map_location=torch.device('cpu'), weights_only=False)
         model.eval()
-        logger.debug('Model loaded successfully from %s', model_path)
+        logger.debug('Model loaded from %s', file_path)
         return model
     except Exception as e:
-        logger.error('Error occurred while loading model: %s', e)
+        logger.error('Error occurred while loading the full model: %s', e)
         raise
+
+
 
 def evaluate_model(model, test_loader, device):
     """Evaluate the model on the test data."""
@@ -162,105 +221,47 @@ def save_model_info(run_id, model_path, output_file):
         raise
 
 
-def save_vocab(vocab, vocab_path):
-    """Save vocabulary to a pickle file."""
-    try:
-        with open(vocab_path, 'wb') as f:
-            pickle.dump(vocab, f)
-        logger.debug(f"Vocabulary saved successfully to {vocab_path}")
-    except Exception as e:
-        logger.error(f'Error occurred while saving vocabulary: {e}')
-        raise
+def load_vocab(vocab_path):
+    with open(vocab_path, 'rb') as f:
+        vocab = pickle.load(f)
+    return vocab
+
 
 def main():
-    mlflow.set_tracking_uri("https://dagshub.com/Prayesh13/youtube-comments-analysis.mlflow") 
 
+    mlflow.set_tracking_uri("https://dagshub.com/Prayesh13/youtube-comments-analysis.mlflow")
     mlflow.set_experiment("dvc-pipeline")
 
     try:
         root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../'))
+        params = load_params(os.path.join(root_dir, 'params.yaml'))
+        vocab = load_vocab(os.path.join(root_dir, 'models/vocab.pkl'))
 
-        # Load parameters from YAML file
-        try:
-            params = load_params(os.path.join(root_dir, 'params.yaml'))
-        except Exception as e:
-            logger.error('Error occurred while loading params: %s', e)
-            raise
+        test_data = pd.read_csv(os.path.join(root_dir, 'data/interim/test_processed.csv'))
+        test_data.fillna('', inplace=True)
 
-        # Load test data
-        try:
-            train_data = pd.read_csv(os.path.join(root_dir, 'data/interim/train_processed.csv'))
-            train_data.fillna('', inplace=True)
-            test_data = pd.read_csv(os.path.join(root_dir, 'data/interim/test_processed.csv'))
-            test_data.fillna('', inplace=True)
-            logger.debug('Test data loaded successfully')
-        except Exception as e:
-            logger.error('Error occurred while loading test data: %s', e)
-            raise
-        
-        X_train = train_data['clean_comment']
         X_test = test_data['clean_comment']
-        y_test = test_data['category']
+        y_test = test_data['category'].map({-1: 0, 0: 1, 1: 2})
 
-        label_mapping = {-1: 0, 0: 1, 1: 2}
-        y_test = y_test.map(label_mapping)
+        max_len = params['model_building']['max_len']
+        batch_size = params['model_building']['batch_size']
 
-        # Build vocabulary from training data (or load from file if available)
-        try:
-            vocab = build_vocab(X_train)
-            logger.debug('Vocabulary built successfully')
-        except Exception as e:
-            logger.error('Error occurred while building vocabulary: %s', e)
-            raise
+        test_loader = create_loader(X_test, y_test, vocab, batch_size, max_len)
 
-        try:
-            save_vocab(vocab, os.path.join(root_dir, 'models/vocab.pkl'))
-            logger.debug('Vocabulary saved successfully')
-        except Exception as e:
-            logger.error('Error occurred while saving vocabulary: %s', e)
-            raise
-
-        # Create test data loader
-        try:
-            max_len = params['model_building']['max_len']
-            batch_size = params['model_building']['batch_size']
-            test_loader = create_loaders(X_test, y_test, X_test, y_test, vocab, tokenizer, batch_size, max_len)[1]
-            logger.debug('Test data loader created successfully')
-        except Exception as e:
-            logger.error('Error occurred while creating data loaders: %s', e)
-            raise
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # Load the trained model
         model_path = os.path.join(root_dir, 'models', 'bilstm_attention_model.pth')
         best_params = params['model_building']
-        try:
-            model = load_trained_model(
-                model_path=model_path,
-                model_class=BiLSTMAttentionModel,
-                vocab_size=len(vocab),
-                embed_dim=best_params['embed_dim'],
-                hidden_dim=best_params['hidden_dim'],
-                output_dim=len(label_mapping),
-                vocab=vocab
-            )
-            logger.debug('Model loaded successfully')
-        except Exception as e:
-            logger.error('Error occurred while loading the model: %s', e)
-            raise
-
-        # Set device
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
+        model = load_model(model_path)
         model = model.to(device)
-
 
         # Start MLflow logging
         with mlflow.start_run() as run:
             # Log model-building parameters
             mlflow.log_params(params['model_building'])
             logger.debug('Logged model-building parameters to MLflow.')
-
-            # Log the trained model
-            example_input = torch.randint(0, len(vocab), (1, max_len))  # batch_size=1, sequence_length=max_len
 
             # Take a small example input for logging
             example_batch = next(iter(test_loader))[0]  # Only X_batch
@@ -272,15 +273,12 @@ def main():
             mlflow.pytorch.log_model(model, model_name, input_example=input_example)
             logger.debug('Logged PyTorch model to MLflow with input_example.')
 
-            artifact_uri = mlflow.get_artifact_uri()
-            logger.debug(f"Artifact URI: {artifact_uri}")
-
-            model_path = os.path.join(artifact_uri, model_name)
+            model_path = model_name
             logger.debug(f"Model path: {model_path}")
 
             # Save model info
             save_model_info(run.info.run_id, model_path, 'experiment_info.json')
-            logger.debug('Saved model info to JSON.')
+            logger.debug('Saved model info to JSON.')   
 
             # mlflow.pytorch.log_model(model, "model")
             logger.debug('Logged PyTorch model to MLflow.')
@@ -288,12 +286,7 @@ def main():
             mlflow.log_artifact(os.path.join(root_dir, 'models/vocab.pkl'))
             logger.debug('Logged vocabulary to MLflow.')
 
-            # Evaluate the model
-            try:
-                accuracy, cm, report = evaluate_model(model, test_loader, device)
-            except Exception as e:
-                logger.error('Error occurred while evaluating the model: %s', e)
-                raise
+            accuracy, cm, report = evaluate_model(model, test_loader, device)
 
             # Save evaluation results to JSON
             reports_dir = os.path.join(root_dir, 'reports')

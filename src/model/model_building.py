@@ -13,6 +13,7 @@ import logging
 import yaml
 import nltk
 import json
+import pickle
 nltk.download('punkt')
 
 # logging configuration
@@ -125,7 +126,7 @@ def train_model(model, train_loader, val_loader, optimizer, criterion, device):
     best_val_loss = np.inf
     patience_counter = 0
     patience = 3
-    num_epochs = 2
+    num_epochs = 1
 
     for epoch in range(1, num_epochs + 1):
         model.train()
@@ -209,13 +210,23 @@ def load_data(file_path: str) -> pd.DataFrame:
 
 
 def save_model(model, file_path: str) -> None:
-    """Save the trained model to a file."""
+    """Save the full model to a file."""
     try:
-        # Save the model's state_dict (weights and parameters)
-        torch.save(model.state_dict(), file_path)
+        # Save the entire model (architecture + weights)
+        torch.save(model, file_path)
         logger.debug('Model saved to %s', file_path)
     except Exception as e:
-        logger.error('Error occurred while saving the model: %s', e)
+        logger.error('Error occurred while saving the full model: %s', e)
+        raise
+
+def save_vocab(vocab, vocab_path):
+    """Save vocabulary to a pickle file."""
+    try:
+        with open(vocab_path, 'wb') as f:
+            pickle.dump(vocab, f)
+        logger.debug(f"Vocabulary saved successfully to {vocab_path}")
+    except Exception as e:
+        logger.error(f'Error occurred while saving vocabulary: {e}')
         raise
 
 
@@ -250,6 +261,8 @@ def main():
         vocab = build_vocab(X_train)
         logger.info(f"Vocabulary size: {len(vocab)}")
 
+        save_vocab(vocab, os.path.join(root_dir, 'models/vocab.pkl'))
+        logger.debug('Vocabulary saved successfully')
 
         max_len = params['model_building']['max_len']
         embed_dim = params['model_building']['embed_dim']
