@@ -33,3 +33,34 @@ jobs:
           DAGSHUB_YOUTUBE_PAT: ${{ secrets.DAGSHUB_YOUTUBE_PAT }} 
         run: |
           dvc repro
+
+      - name: Push DVC-tracked data to remote (DAGsHub)
+        env:
+          DAGSHub_TOKEN: ${{ secrets.DAGSHub_TOKEN }}
+        run: |
+          dvc remote add -d dagsHubRemote "https://dagshub.com/${{ secrets.DAGSHUB_USERNAME }}/your-repo-name.dvc" 
+          dvc remote modify dagsHubRemote --local auth basic
+          dvc remote modify dagsHubRemote --local user ${{ secrets.DAGSHUB_USERNAME }}
+          dvc remote modify dagsHubRemote --local password ${{ secrets.DAGSHUB_YOUTUBE_PAT }}
+          dvc push
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add changes to Git
+        run: |
+          git add .
+
+      - name: Commit changes
+        if: ${{ github.actor != 'github-actions[bot]' }}
+        run: |
+          git commit -m "Automated commit of DVC outputs and updated code" || echo "No changes to commit"
+
+      - name: Push changes
+        if: ${{ github.actor != 'github-actions[bot]' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git push origin ${{ github.ref_name }}
