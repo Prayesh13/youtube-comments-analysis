@@ -55,7 +55,7 @@ def load_params(params_path: str) -> dict:
 def tokenizer(text):
     return re.findall(r'\b\w+\b', text.lower())
 
-# 2. Build vocabulary
+
 def build_vocab(texts, min_freq=1):
     counter = Counter()
     for text in texts:
@@ -66,7 +66,7 @@ def build_vocab(texts, min_freq=1):
             vocab[word] = len(vocab)
     return vocab
 
-# 3. Custom Dataset class
+
 class TextDataset(Dataset):
     def __init__(self, texts, labels, vocab, tokenizer, max_len=100):
         self.texts = texts
@@ -84,7 +84,7 @@ class TextDataset(Dataset):
         ids += [self.vocab["<pad>"]] * (self.max_len - len(ids))
         return torch.tensor(ids), torch.tensor(self.labels[idx], dtype=torch.long)
 
-# 4. Create DataLoaders
+
 def create_loaders(X_train, y_train, X_test, y_test, vocab, tokenizer, batch_size=32, max_len=100):
     train_dataset = TextDataset(X_train.tolist(), y_train.tolist(), vocab, tokenizer, max_len)
     test_dataset = TextDataset(X_test.tolist(), y_test.tolist(), vocab, tokenizer, max_len)
@@ -219,6 +219,7 @@ def save_model(model, file_path: str) -> None:
         logger.error('Error occurred while saving the full model: %s', e)
         raise
 
+
 def save_vocab(vocab, vocab_path):
     """Save vocabulary to a pickle file."""
     try:
@@ -302,6 +303,7 @@ def main():
     except Exception as e:
         logger.error('Failed to complete the feature engineering and model building process: %s', e)
         print(f"Error: {e}")
+
 
 if __name__ == '__main__':
     main()

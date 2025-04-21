@@ -6,20 +6,14 @@ import logging
 import dagshub
 import os
 
-# # Set up DagsHub credentials for MLflow tracking
-# dagshub_token = os.getenv("DAGSHUB_PAT")
-# if not dagshub_token:
-#     raise EnvironmentError("DAGSHUB_PAT environment variable is not set")
+# Set up DagsHub credentials for MLflow tracking
+dagshub_token = os.getenv("DAGSHUB_YOUTUBE_PAT")
+if not dagshub_token:
+    raise EnvironmentError("DAGSHUB_YOUTUBE_PAT environment variable is not set")
 
-# os.environ["MLFLOW_TRACKING_USERNAME"] = dagshub_token
-# os.environ["MLFLOW_TRACKING_PASSWORD"] = dagshub_token
+os.environ["MLFLOW_TRACKING_USERNAME"] = dagshub_token
+os.environ["MLFLOW_TRACKING_PASSWORD"] = dagshub_token
 
-# after cicd remove this two lines
-import dagshub
-dagshub.init(repo_owner='Prayesh13', repo_name='youtube-comments-analysis', mlflow=True)
-
-
-# Define DagsHub URL and repository details
 dagshub_url = "https://dagshub.com"
 repo_owner = "Prayesh13"
 repo_name = "youtube-comments-analysis"
@@ -59,6 +53,7 @@ def load_model_info(file_path: str) -> dict:
         logger.error('Unexpected error occurred while loading the model info: %s', e)
         raise
 
+
 def register_model(model_name: str, model_info: dict):
     """Register the model to the MLflow Model Registry."""
     try:
@@ -91,6 +86,7 @@ def register_model(model_name: str, model_info: dict):
         logger.error("Error during model registration: %s", e)
         raise
 
+
 def main():
     try:
         model_info_path = 'experiment_info.json'
@@ -101,6 +97,7 @@ def main():
     except Exception as e:
         logger.error('Failed to complete the model registration process: %s', e)
         print(f"Error: {e}")
+
 
 if __name__ == '__main__':
     main()

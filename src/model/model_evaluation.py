@@ -17,8 +17,20 @@ import mlflow
 import mlflow.pytorch
 import dagshub
 
-# Initialize DagsHub and MLflow
-dagshub.init(repo_owner='Prayesh13', repo_name='youtube-comments-analysis', mlflow=True)
+# Set up DagsHub credentials for MLflow tracking
+dagshub_token = os.getenv("DAGSHUB_YOUTUBE_PAT")
+if not dagshub_token:
+    raise EnvironmentError("DAGSHUB_YOUTUBE_PAT environment variable is not set")
+
+os.environ["MLFLOW_TRACKING_USERNAME"] = dagshub_token
+os.environ["MLFLOW_TRACKING_PASSWORD"] = dagshub_token
+
+dagshub_url = "https://dagshub.com"
+repo_owner = "Prayesh13"
+repo_name = "youtube-comments-analysis"
+
+# Set up MLflow tracking URI
+mlflow.set_tracking_uri(f'{dagshub_url}/{repo_owner}/{repo_name}.mlflow')
 
 # logging configuration
 logger = logging.getLogger('model_evaluation')
@@ -36,7 +48,6 @@ file_handler.setFormatter(formatter)
 
 logger.addHandler(console_handler)
 logger.addHandler(file_handler)
-
 
 class Attention(nn.Module):
     def __init__(self, hidden_dim):
@@ -121,7 +132,6 @@ def load_model(file_path: str):
     except Exception as e:
         logger.error('Error occurred while loading the full model: %s', e)
         raise
-
 
 
 def evaluate_model(model, test_loader, device):
