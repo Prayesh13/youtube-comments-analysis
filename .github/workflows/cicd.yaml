@@ -36,13 +36,12 @@ jobs:
 
       - name: Push DVC-tracked data to remote (DAGsHub)
         env:
-          DAGSHub_TOKEN: ${{ secrets.DAGSHub_TOKEN }}
+          DAGSHub_TOKEN: ${{ secrets.DAGSHUB_YOUTUBE_PAT }}
         run: |
-          dvc remote add -d dagsHubRemote "https://dagshub.com/${{ secrets.DAGSHUB_USERNAME }}/your-repo-name.dvc" 
-          dvc remote modify dagsHubRemote --local auth basic
-          dvc remote modify dagsHubRemote --local user ${{ secrets.DAGSHUB_USERNAME }}
-          dvc remote modify dagsHubRemote --local password ${{ secrets.DAGSHUB_YOUTUBE_PAT }}
-          dvc push
+          dvc remote add origin s3://dvc
+          dvc remote modify origin endpointurl https://dagshub.com/Prayesh13/youtube-comments-analysis.s3
+          dvc remote modify origin --local access_key_id ${{ secrets.DAGSHUB_YOUTUBE_PAT }}
+          dvc remote modify origin --local secret_access_key ${{ secrets.DAGSHUB_YOUTUBE_PAT }}
 
       - name: Configure Git
         run: |
