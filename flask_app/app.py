@@ -23,16 +23,16 @@ matplotlib.use('Agg')
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
-# # Set up DagsHub credentials for MLflow tracking
-# dagshub_token = os.getenv("DAGSHUB_YOUTUBE_PAT")
-# if not dagshub_token:
-#     raise EnvironmentError("DAGSHUB_YOUTUBE_PAT environment variable is not set")
+# Set up DagsHub credentials for MLflow tracking
+dagshub_token = os.getenv("DAGSHUB_YOUTUBE_PAT")
+if not dagshub_token:
+    raise EnvironmentError("DAGSHUB_YOUTUBE_PAT environment variable is not set")
 
-# os.environ["MLFLOW_TRACKING_USERNAME"] = dagshub_token
-# os.environ["MLFLOW_TRACKING_PASSWORD"] = dagshub_token
+os.environ["MLFLOW_TRACKING_USERNAME"] = dagshub_token
+os.environ["MLFLOW_TRACKING_PASSWORD"] = dagshub_token
 
-import dagshub
-dagshub.init(repo_owner='Prayesh13', repo_name='youtube-comments-analysis', mlflow=True)
+# import dagshub
+# dagshub.init(repo_owner='Prayesh13', repo_name='youtube-comments-analysis', mlflow=True)
 
 # Create a mapping of common emoji descriptions to sentiment keywords
 EMOJI_SENTIMENT_MAP = {
@@ -373,4 +373,4 @@ def generate_trend_graph():
         return jsonify({"error": f"Trend graph generation failed: {str(e)}"}), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(debug=True)
