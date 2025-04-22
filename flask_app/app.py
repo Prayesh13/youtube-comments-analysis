@@ -1,7 +1,5 @@
 import mlflow
 import mlflow.pytorch
-from mlflow.tracking import MlflowClient
-import dagshub
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import torch
@@ -10,6 +8,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from wordcloud import WordCloud
 import io
+import emoji
 import matplotlib.dates as mdates
 import numpy as np
 import os
@@ -19,14 +18,50 @@ from nltk.stem import WordNetLemmatizer
 import pickle
 import matplotlib
 matplotlib.use('Agg')
+# import dagshub
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
-# Define the preprocessing function
+# # Set up DagsHub credentials for MLflow tracking
+# dagshub_token = os.getenv("DAGSHUB_YOUTUBE_PAT")
+# if not dagshub_token:
+#     raise EnvironmentError("DAGSHUB_YOUTUBE_PAT environment variable is not set")
+
+# os.environ["MLFLOW_TRACKING_USERNAME"] = dagshub_token
+# os.environ["MLFLOW_TRACKING_PASSWORD"] = dagshub_token
+
+import dagshub
+dagshub.init(repo_owner='Prayesh13', repo_name='youtube-comments-analysis', mlflow=True)
+
+# Create a mapping of common emoji descriptions to sentiment keywords
+EMOJI_SENTIMENT_MAP = {
+    "smiling_face_with_heart_eyes": "love",
+    "clapping_hands": "applause",
+    "fire": "fire",
+    "thumbs_up": "good",
+    "thumbs_down": "bad",
+    "red_heart": "love",
+    "face_with_tears_of_joy": "happy",
+    "crying_face": "sad",
+    "angry_face": "angry",
+    "grinning_face": "happy",
+    "smiling_face_with_sunglasses": "cool",
+    "loudly_crying_face": "very_sad",
+    "face_with_rolling_eyes": "annoyed",
+    "star_struck": "amazed"
+}
+
 def preprocess_comment(comment):
-    """Apply preprocessing transformations to a comment."""
+    """Apply preprocessing transformations to a comment for sentiment analysis."""
     try:
+        # Convert emojis to text
+        comment = emoji.demojize(comment, delimiters=(" ", " "))
+
+        # Replace emoji descriptions with simpler sentiment keywords
+        for emoji_name, keyword in EMOJI_SENTIMENT_MAP.items():
+            comment = comment.replace(emoji_name, keyword)
+
         # Convert to lowercase
         comment = comment.lower()
 
@@ -36,8 +71,8 @@ def preprocess_comment(comment):
         # Remove newline characters
         comment = re.sub(r'\n', ' ', comment)
 
-        # Remove non-alphanumeric characters, except punctuation
-        comment = re.sub(r'[^A-Za-z0-9\s!?.,]', '', comment)
+        # Remove non-alphanumeric characters, except punctuation and colons (for emoji text)
+        comment = re.sub(r'[^A-Za-z0-9\s!?.,:]', '', comment)
 
         # Remove stopwords but retain important ones for sentiment analysis
         stop_words = set(stopwords.words('english')) - {'not', 'but', 'however', 'no', 'yet'}
@@ -52,9 +87,12 @@ def preprocess_comment(comment):
         print(f"Error in preprocessing comment: {e}")
         return comment
 
-# Initialize DagsHub and MLflow
-dagshub.init(repo_owner='Prayesh13', repo_name='youtube-comments-analysis', mlflow=True)
-mlflow.set_tracking_uri("https://dagshub.com/Prayesh13/youtube-comments-analysis.mlflow")
+dagshub_url = "https://dagshub.com"
+repo_owner = "Prayesh13"
+repo_name = "youtube-comments-analysis"
+
+# Set up MLflow tracking URI
+mlflow.set_tracking_uri(f'{dagshub_url}/{repo_owner}/{repo_name}.mlflow')
 
 # Load the model info from model registry
 def load_model_vocab_from_registry(model_name, model_version, vocab_path) -> dict:
@@ -71,7 +109,7 @@ def load_model_vocab_from_registry(model_name, model_version, vocab_path) -> dic
         raise
 
 # Load the model and vocabulary from the registry
-model, vocab = load_model_vocab_from_registry("Yt_Chrome_plugin_model", "2", "models/vocab.pkl")
+model, vocab = load_model_vocab_from_registry("Yt_Chrome_plugin_model", "3", "vocab.pkl")
 print("Model and vocabulary loaded successfully.")
 
 def tokenizer(text):
@@ -119,6 +157,8 @@ def predict_with_timestamps():
 
         # Return results
         response = [{"comment": comment, "sentiment": sentiment, "timestamp": timestamp} for comment, sentiment, timestamp in zip(comments, mapped_predictions, timestamps)]
+        # response = [{"comment": comment, "sentiment": sentiment} for comment, sentiment, timestamp in zip(comments, mapped_predictions)]
+
         return jsonify(response), 200
 
     except Exception as e:
