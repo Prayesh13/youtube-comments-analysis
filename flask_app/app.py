@@ -18,7 +18,10 @@ from nltk.stem import WordNetLemmatizer
 import pickle
 import matplotlib
 matplotlib.use('Agg')
-# import dagshub
+from dotenv import load_dotenv
+
+# Load .env file
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
@@ -373,4 +376,4 @@ def generate_trend_graph():
         return jsonify({"error": f"Trend graph generation failed: {str(e)}"}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True)
