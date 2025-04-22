@@ -10,3 +10,4 @@ torch==2.6.0
 wordcloud==1.9.4
 emoji
 gunicorn
+python-dotenv
