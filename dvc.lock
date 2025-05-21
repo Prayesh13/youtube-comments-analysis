@@ -78,7 +78,7 @@ stages:
     outs:
     - path: models/bilstm_attention_model.pth
       hash: md5
-      md5: 61d0a81e4e9dba55b029afbcb5de5ebd
+      md5: 8f7000bbac3d2351669fc8b9161a82d2
       size: 41879086
   model_evaluation:
     cmd: python src/model/model_evaluation.py
@@ -90,7 +90,7 @@ stages:
       nfiles: 2
     - path: models/bilstm_attention_model.pth
       hash: md5
-      md5: 61d0a81e4e9dba55b029afbcb5de5ebd
+      md5: 8f7000bbac3d2351669fc8b9161a82d2
       size: 41879086
     - path: src/model/model_evaluation.py
       hash: md5
@@ -103,14 +103,14 @@ stages:
     outs:
     - path: reports/evaluation_results.json
       hash: md5
-      md5: 08600336bf08778e70cb098323f1f51a
-      size: 710
+      md5: be5907b79f56f77b88cf673ec8c72d64
+      size: 711
   model_registration:
     cmd: python src/model/register_model.py
     deps:
     - path: experiment_info.json
       hash: md5
-      md5: 5e0485119adf2e22980b903f7424bef0
+      md5: 2fe70c3559b84e099195018d154be9e5
       size: 96
     - path: src/model/register_model.py
       hash: md5
