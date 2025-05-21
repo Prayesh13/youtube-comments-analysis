@@ -153,7 +153,7 @@ cd Yt-chrome-plugin-frontend
 ### 📷 Extension Preview
 
 | Comment Sentiment UI
-![Comment Sentiment UI](https://drive.google.com/file/d/1iN9bWdj-lKZvjtg4EUiFmpSf0FxlYTxC/view?usp=sharing)
+[Comment Sentiment UI](https://drive.google.com/file/d/1iN9bWdj-lKZvjtg4EUiFmpSf0FxlYTxC/view?usp=sharing)
 ---
 
 ## 🧪 Testing & CI/CD
