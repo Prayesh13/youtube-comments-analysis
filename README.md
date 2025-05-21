@@ -1,57 +1,175 @@
-youtube-comments-analysis
-==============================
+# 🎥 YouTube Comments Sentiment Analysis
 
-A machine learning project that gives prediction of sentiment of the given video comments and gives detailed analysis and made chrome plugin.
+This project uses machine learning to analyze the sentiment of comments on YouTube videos, providing detailed insights and live sentiment overlays via a custom Chrome Extension. Built with modularity and reproducibility in mind, it follows the Cookiecutter Data Science structure and incorporates a full MLOps workflow.
 
-Project Organization
-------------
+---
 
+## 📌 Key Features
+
+- ✅ Predicts comment sentiment (Positive / Neutral / Negative)
+- 📊 Visual analytics to summarize sentiment trends
+- 🌐 Chrome extension that overlays real-time comment sentiment on YouTube
+- 🔁 MLOps pipeline with DVC, GitHub Actions, Docker, and Flask API
+- 📦 Easy to install, extend, and deploy
+
+---
+
+## 🧠 Architecture Overview
+
+![Project Architecture](reports/figures/project_architecture.png)
+
+### 🔄 Data Pipeline
+
+- **YouTube Data API**: Collects raw comment data
+- **Data Preprocessing & Feature Engineering**: Cleans and prepares the data for modeling
+- **Model Training & Evaluation**: Sentiment model is trained, validated, and evaluated
+- **Model Registration**: Artifacts are saved and tracked via DVC
+
+### 🔌 Inference Service
+
+- Flask API (`app.py`) serves model predictions
+- Chrome Extension sends HTTP requests to the API
+- Models and vocabulary (`vocab.pkl`) are versioned and stored in the DVC remote
+
+---
+
+## 📁 Project Structure
+
+```bash
+└── youtube-comments-analysis/
+    ├── .github
+    │   └── workflows
+    ├── Dockerfile
     ├── LICENSE
-    ├── Makefile           <- Makefile with commands like `make data` or `make train`
-    ├── README.md          <- The top-level README for developers using this project.
-    ├── data
-    │   ├── external       <- Data from third party sources.
-    │   ├── interim        <- Intermediate data that has been transformed.
-    │   ├── processed      <- The final, canonical data sets for modeling.
-    │   └── raw            <- The original, immutable data dump.
-    │
-    ├── docs               <- A default Sphinx project; see sphinx-doc.org for details
-    │
-    ├── models             <- Trained and serialized models, model predictions, or model summaries
-    │
-    ├── notebooks          <- Jupyter notebooks. Naming convention is a number (for ordering),
-    │                         the creator's initials, and a short `-` delimited description, e.g.
-    │                         `1.0-jqp-initial-data-exploration`.
-    │
-    ├── references         <- Data dictionaries, manuals, and all other explanatory materials.
-    │
-    ├── reports            <- Generated analysis as HTML, PDF, LaTeX, etc.
-    │   └── figures        <- Generated graphics and figures to be used in reporting
-    │
-    ├── requirements.txt   <- The requirements file for reproducing the analysis environment, e.g.
-    │                         generated with `pip freeze > requirements.txt`
-    │
-    ├── setup.py           <- makes project pip installable (pip install -e .) so src can be imported
-    ├── src                <- Source code for use in this project.
-    │   ├── __init__.py    <- Makes src a Python module
-    │   │
-    │   ├── data           <- Scripts to download or generate data
-    │   │   └── make_dataset.py
-    │   │
-    │   ├── features       <- Scripts to turn raw data into features for modeling
-    │   │   └── build_features.py
-    │   │
-    │   ├── models         <- Scripts to train models and then use trained models to make
-    │   │   │                 predictions
-    │   │   ├── predict_model.py
-    │   │   └── train_model.py
-    │   │
-    │   └── visualization  <- Scripts to create exploratory and results oriented visualizations
-    │       └── visualize.py
-    │
-    └── tox.ini            <- tox file with settings for running tox; see tox.readthedocs.io
+    ├── Makefile
+    ├── README.md
+    ├── docs
+    │   ├── Makefile
+    │   ├── commands.rst
+    │   ├── conf.py
+    │   ├── getting-started.rst
+    │   ├── index.rst
+    │   └── make.bat
+    ├── dvc.lock
+    ├── dvc.yaml
+    ├── experiment_info.json
+    ├── flask_app
+    │   ├── app.py
+    │   ├── requirements.txt
+    │   └── vocab.pkl
+    ├── models
+    │   └── .gitkeep
+    ├── notebooks
+    │   ├── .gitkeep
+    │   ├── baseline_model.ipynb
+    │   ├── baseline_model_bilstm.ipynb
+    │   ├── baseline_model_using_lstm_torch.ipynb
+    │   ├── bilstm_attention.ipynb
+    │   ├── confusion_matrix.png
+    │   ├── data_analysis.ipynb
+    │   ├── data_ingestion.ipynb
+    │   ├── data_preprocessing.ipynb
+    │   └── pretrained_models.ipynb
+    ├── params.yaml
+    ├── references
+    │   ├── .gitkeep
+    │   └── dataset_resources.txt
+    ├── reports
+    │   ├── .gitignore
+    │   ├── .gitkeep
+    │   ├── confusion_matrix.png
+    │   └── figures
+    ├── requirements.txt
+    ├── scripts
+    │   └── test_model.py
+    ├── setup.py
+    ├── src
+    │   ├── data
+    │   ├── features
+    │   ├── model
+    │   └── visualization
+    ├── test_environment.py
+    └── tox.ini
+```
 
+## ⚙️ Installation & Usage
 
---------
+### Step 1: Clone the Repository
 
-<p><small>Project based on the <a target="_blank" href="https://drivendata.github.io/cookiecutter-data-science/">cookiecutter data science project template</a>. #cookiecutterdatascience</small></p>
+```bash
+git clone https://github.com/Prayesh13/youtube-comments-analysis.git
+cd youtube-comments-analysis
+```
+
+### Step 2: Set Up Environment
+
+```bash
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
+### Step 3: Run Pipeline
+
+```bash
+dvc repro  # run pipeline in powershell
+```
+
+---
+
+## 🚀 Deploy Inference API
+
+To launch the Flask API for prediction:
+
+```bash
+python .\flask_app\app.py
+```
+
+The API will be available at `http://localhost:5000/predict`
+
+### Example POST request
+
+```json
+POST /predict
+{
+  "comment": "This video is amazing!"
+}
+```
+
+---
+
+## 🧩 Chrome Extension Integration
+
+This project includes a Chrome extension that overlays sentiment analysis directly onto the YouTube interface.
+
+🔗 **Chrome Plugin GitHub Repo**: [https://github.com/Prayesh13/Yt-chrome-plugin-frontend](https://github.com/Prayesh13/Yt-chrome-plugin-frontend)
+
+### Clone the Repository
+
+```bash
+git clone https://github.com/Prayesh13/Yt-chrome-plugin-frontend.git
+cd Yt-chrome-plugin-frontend
+```
+
+### 📷 Extension Preview
+
+| Comment Sentiment UI
+![Comment Sentiment UI](reports/figures/YCA_video.mp4)
+---
+
+## 🧪 Testing & CI/CD
+
+* **Unit Testing**: Configure tests inside `tests/` and run with `pytest`
+* **CI/CD**: GitHub Actions config in `.github/workflows/ci-cd.yaml`
+* **Dockerized**: Use `Dockerfile` for containerized deployment
+
+---
+
+## 📄 License
+
+Distributed under the MIT License. See [`LICENSE`](LICENSE) for details.
+
+---
+
+> 💡 Built with ❤️ using the [Cookiecutter Data Science Template](https://drivendata.github.io/cookiecutter-data-science/)
+
+```
